@@ -94,10 +94,12 @@ def get_pull_requests(org: str, repo_name: str):
             upr = UserPullRequest(p)
             data.append(upr.to_dict())
     except Exception:
-        print(json.dumps({'prs': data}, indent=4))
+        with open(data_file,"w+") as f:
+            f.write(json.dumps({'prs': data}, indent=4))
         exit(1)
 
-    print(json.dumps({'prs': data}, indent=4))
+    with open(data_file,"w+") as f:
+        f.write(json.dumps({'prs': data}, indent=4))
 
 
 if __name__ == '__main__':
