@@ -4,7 +4,7 @@ from github import Github
 
 import json
 import logging
-from os import getenv
+from os import getenv, path
 
 logging.basicConfig(level=logging.INFO)
 
@@ -29,7 +29,7 @@ logging.basicConfig(level=logging.INFO)
 
 class UserPullRequest(object):
     def __init__(self, ghPR):
-        self.id = ghPR.id
+        self.number = ghPR.number
         self.user = ghPR.user.login
         self.title = ghPR.title
         self.created_at = str(ghPR.created_at)
@@ -48,7 +48,7 @@ class UserPullRequest(object):
 
     def to_dict(self):
         return {
-            'id': self.id,
+            'number': self.number,
             'user': str(self.user),
             'title': str(self.title),
             'created_at': self.created_at,
@@ -72,34 +72,47 @@ def get_pull_requests(org: str, repo_name: str):
 
     previous_prs = None
     previous_pr_titles = None 
-    data_file = f'{data_dir}{org}/{repo_name}-prs.json'
+    data_file = f'{data_dir}{org}/{repo_name}/prs.json'
+
     try:
         with open(data_file) as jsonfile:
             previous_prs = json.load(jsonfile)
-
-            previous_pr_titles = map(lambda x: x['title'], previous_prs['prs'])
+            previous_pr_numbers = map(lambda x: x['number'], previous_prs['prs'])
     except FileNotFoundError:
         previous_pr_titles = [] 
 
     data = []
     try:
         for i, p in enumerate(pr):
-            logging.info('%s %d', p.title, i)
-            if p.title in previous_pr_titles:
+            logging.debug('%s (%d) %d', p.title, p.number, i)
+            if p.number in previous_pr_numbers:
                 logging.info(
-                    'Found matching PR title (%s), so breaking at %d.',
-                    p.title, i)
+                    'Found matching PR title (%s) and number (%d), so breaking at %d.',
+                    p.title, p.number, i)
                 break
-            logging.info('Processed %d PRs, current: %s', i, p.title)
+            logging.info('Processed %d PRs, current: %s (%d)', i, p.title, p.number)
             upr = UserPullRequest(p)
             data.append(upr.to_dict())
     except Exception:
-        with open(data_file,"w+") as f:
-            f.write(json.dumps({'prs': data}, indent=4))
+        write_prs_to_files(data_file, data, True)
         exit(1)
+    finally:
+        write_prs_to_files(data_file, data, False)
 
-    with open(data_file,"w+") as f:
+def write_prs_to_files(filename: str, data: object, skip_if_empty: bool):
+    if not path.exists(filename) and skip_if_empty:
+        logging.info('not overwriting since file exists, %s', filename)
+        return False
+
+    if len(data) == 0:
+        logging.info('no data to write, %s', filename)
+        return False
+
+    with open(filename,"w+") as f:
+        logging.info('overwriting file, %s', filename)
         f.write(json.dumps({'prs': data}, indent=4))
+
+    return True
 
 
 if __name__ == '__main__':
